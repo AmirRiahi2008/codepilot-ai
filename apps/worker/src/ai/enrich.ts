@@ -22,22 +22,18 @@ type AiResponse = {
   }>;
 };
 
-const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
-const DEFAULT_MODEL = 'gpt-4.1-mini';
-const DEFAULT_TIMEOUT_MS = 45_000;
+const DEFAULT_BASE_URL = 'http://localhost:11434/v1';
+const DEFAULT_MODEL = 'qwen2.5-coder:7b';
+const DEFAULT_TIMEOUT_MS = 120_000;
 const MAX_ISSUES = 20;
 const MAX_TEXT_LENGTH = 2000;
 
 function cleanText(value: unknown, maxLength = MAX_TEXT_LENGTH) {
-  if (typeof value !== 'string') {
-    return undefined;
-  }
+  if (typeof value !== 'string') return undefined;
 
   const text = value.trim();
 
-  if (!text) {
-    return undefined;
-  }
+  if (!text) return undefined;
 
   return text.slice(0, maxLength);
 }
@@ -74,10 +70,9 @@ Important rules:
 - Do not wrap the JSON in code fences.
 - Do not claim that you executed, ran, compiled, tested, or verified the repository.
 - Base your response only on the provided findings.
-- Do not invent files, line numbers, APIs, dependencies, or behavior that are not supported by the finding.
+- Do not invent files, line numbers, APIs, dependencies, or behavior.
 - Keep explanations concise and technically accurate.
 - Keep fixes practical and actionable.
-- If there is not enough information for a specific fix, provide a safe general recommendation instead.
 - Preserve the issue index exactly.
 
 Required JSON format:
@@ -103,20 +98,16 @@ export async function enrichWithAi(issues: Issue[]) {
     return { explanations };
   }
 
-  const key = process.env.LLM_API_KEY?.trim();
-
-  if (!key) {
-    console.warn('LLM_API_KEY is not configured. Skipping AI enrichment.');
-    return { explanations };
-  }
-
   const baseUrl = (
     process.env.LLM_BASE_URL?.trim() || DEFAULT_BASE_URL
   ).replace(/\/$/, '');
 
   const model = process.env.LLM_MODEL?.trim() || DEFAULT_MODEL;
 
-  const timeoutMs = Number(process.env.LLM_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS;
+  const timeoutMs =
+    Number(process.env.LLM_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS;
+
+  const apiKey = process.env.LLM_API_KEY?.trim();
 
   const controller = new AbortController();
 
@@ -125,14 +116,17 @@ export async function enrichWithAi(issues: Issue[]) {
   }, timeoutMs);
 
   try {
-    const prompt = buildPrompt(issues);
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (apiKey) {
+      headers.Authorization = `Bearer ${apiKey}`;
+    }
 
     const response = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${key}`,
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({
         model,
         temperature: 0.2,
@@ -144,7 +138,7 @@ export async function enrichWithAi(issues: Issue[]) {
           },
           {
             role: 'user',
-            content: prompt,
+            content: buildPrompt(issues),
           },
         ],
       }),
@@ -180,8 +174,7 @@ export async function enrichWithAi(issues: Issue[]) {
     let parsed: AiResponse;
 
     try {
-      const json = extractJson(content);
-      parsed = JSON.parse(json) as AiResponse;
+      parsed = JSON.parse(extractJson(content)) as AiResponse;
     } catch (error) {
       console.warn(
         'Failed to parse LLM JSON response:',
