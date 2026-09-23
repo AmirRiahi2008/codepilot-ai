@@ -1,0 +1,130 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum AuditStatus {
+  PENDING
+  RUNNING
+  DOWNLOADING
+  SCANNING
+  AI_ANALYSIS
+  COMPLETED
+  FAILED
+}
+
+enum IssueSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFO
+}
+
+enum IssueCategory {
+  SECURITY
+  ARCHITECTURE
+  PERFORMANCE
+  QUALITY
+  TESTING
+}
+
+model User {
+  id            String         @id @default(cuid())
+  name          String?
+  email         String         @unique
+  passwordHash  String
+  avatarUrl     String?
+  role          Role           @default(USER)
+  githubAccount GitHubAccount?
+  repositories  Repository[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model GitHubAccount {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  githubUserId String   @unique
+  accessToken  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Repository {
+  id            String   @id @default(cuid())
+  userId        String
+  githubId      String   @unique
+  name          String
+  fullName      String
+  owner         String
+  defaultBranch String
+  language      String?
+  private       Boolean  @default(false)
+  pushedAt      DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  audits Audit[]
+}
+
+model Audit {
+  id           String      @id @default(cuid())
+  repositoryId String
+  status       AuditStatus @default(PENDING)
+  startedAt    DateTime?
+  completedAt  DateTime?
+  failedReason String?
+  overallScore Int?
+  createdAt    DateTime    @default(now())
+
+  repository Repository       @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  issues     Issue[]
+  metrics    AnalysisMetrics?
+}
+
+model Issue {
+  id             String        @id @default(cuid())
+  auditId        String
+  title          String
+  category       IssueCategory
+  severity       IssueSeverity
+  filePath       String?
+  lineNumber     Int?
+  description    String
+  evidence       String?
+  recommendation String?
+  aiExplanation  String?
+  suggestedFix   String?
+  createdAt      DateTime      @default(now())
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+  @@index([severity])
+  @@index([category])
+}
+
+model AnalysisMetrics {
+  id                  String @id @default(cuid())
+  auditId             String @unique
+  securityScore       Int
+  architectureScore   Int
+  performanceScore    Int
+  qualityScore        Int
+  testingScore        Int
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+}
