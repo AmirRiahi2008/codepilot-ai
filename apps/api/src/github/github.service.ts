@@ -1,6 +1,6 @@
 import {
-  Injectable,
   BadRequestException,
+  Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 
@@ -64,11 +64,14 @@ export class GitHubService {
       access_token?: string;
       scope?: string;
       error?: string;
+      error_description?: string;
     };
 
     if (!tokenResponse.ok || !tokenBody.access_token) {
       throw new UnauthorizedException(
-        tokenBody.error ?? 'GitHub authorization failed',
+        tokenBody.error_description ??
+          tokenBody.error ??
+          'GitHub authorization failed',
       );
     }
 
@@ -90,14 +93,18 @@ export class GitHubService {
     };
 
     await this.prisma.gitHubAccount.upsert({
-      where: { userId },
+      where: {
+        userId,
+      },
       update: {
         githubUserId: String(profile.id),
-accessToken: encryptSecret(tokenBody.access_token),      },
+        accessToken: encryptSecret(tokenBody.access_token),
+      },
       create: {
         userId,
         githubUserId: String(profile.id),
-accessToken: encryptSecret(tokenBody.access_token),      },
+        accessToken: encryptSecret(tokenBody.access_token),
+      },
     });
 
     return {
@@ -110,7 +117,9 @@ accessToken: encryptSecret(tokenBody.access_token),      },
 
   async listRepos(userId: string) {
     const account = await this.prisma.gitHubAccount.findUnique({
-      where: { userId },
+      where: {
+        userId,
+      },
     });
 
     if (!account) {
@@ -131,7 +140,19 @@ accessToken: encryptSecret(tokenBody.access_token),      },
       throw new UnauthorizedException('GitHub API request failed');
     }
 
-    const repos = (await response.json()) as Array<any>;
+    const repos = (await response.json()) as Array<{
+      id: number;
+      name: string;
+      full_name: string;
+      private: boolean;
+      default_branch: string;
+      language: string | null;
+      stargazers_count: number;
+      pushed_at: string | null;
+      owner: {
+        login: string;
+      };
+    }>;
 
     return repos.map((repo) => ({
       githubId: String(repo.id),

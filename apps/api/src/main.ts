@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
 import path from 'node:path';
-
+import bodyParser from 'body-parser';
 dotenv.config({
   path: path.resolve('/Users/amirriahi/Projects/codepilot-ai/.env'),
 });
@@ -22,6 +22,8 @@ async function bootstrap() {
     origin: process.env.WEB_URL ?? 'http://localhost:3000',
     credentials: true,
   });
+  app.use(bodyParser.json({ limit: '2mb' }));
+app.use(bodyParser.urlencoded({ limit: '2mb', extended: true }));
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   await app.listen(Number(process.env.API_PORT ?? 4000));
 }

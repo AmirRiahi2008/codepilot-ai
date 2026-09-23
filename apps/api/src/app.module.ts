@@ -9,6 +9,7 @@ import { RepositoriesModule } from './repositories/repositories.module';
 import { AuditsModule } from './audits/audits.module';
 import { IssuesModule } from './issues/issues.module';
 import { InternalModule } from './internal/internal.module';
+import { HealthController } from './health.controller';
 
 @Module({
   imports: [
@@ -32,5 +33,7 @@ import { InternalModule } from './internal/internal.module';
     IssuesModule,
     InternalModule,
   ],
+
+  controllers: [HealthController],
 })
 export class AppModule {}

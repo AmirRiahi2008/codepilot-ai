@@ -141,6 +141,7 @@ export class InternalService {
         where: { id: auditId },
         data: {
           status: 'COMPLETED',
+          activeKey: null,
           startedAt: audit.startedAt ?? new Date(),
           completedAt: new Date(),
           overallScore: payload.overallScore,
@@ -162,6 +163,7 @@ export class InternalService {
       where: { id: auditId },
       data: {
         status: 'FAILED',
+        activeKey: null,
         failedReason: reason,
         completedAt: new Date(),
       },

@@ -37,6 +37,7 @@ export type AuditSumAggregateOutputType = {
 export type AuditMinAggregateOutputType = {
   id: string | null
   repositoryId: string | null
+  activeKey: string | null
   status: $Enums.AuditStatus | null
   startedAt: Date | null
   completedAt: Date | null
@@ -48,6 +49,7 @@ export type AuditMinAggregateOutputType = {
 export type AuditMaxAggregateOutputType = {
   id: string | null
   repositoryId: string | null
+  activeKey: string | null
   status: $Enums.AuditStatus | null
   startedAt: Date | null
   completedAt: Date | null
@@ -59,6 +61,7 @@ export type AuditMaxAggregateOutputType = {
 export type AuditCountAggregateOutputType = {
   id: number
   repositoryId: number
+  activeKey: number
   status: number
   startedAt: number
   completedAt: number
@@ -80,6 +83,7 @@ export type AuditSumAggregateInputType = {
 export type AuditMinAggregateInputType = {
   id?: true
   repositoryId?: true
+  activeKey?: true
   status?: true
   startedAt?: true
   completedAt?: true
@@ -91,6 +95,7 @@ export type AuditMinAggregateInputType = {
 export type AuditMaxAggregateInputType = {
   id?: true
   repositoryId?: true
+  activeKey?: true
   status?: true
   startedAt?: true
   completedAt?: true
@@ -102,6 +107,7 @@ export type AuditMaxAggregateInputType = {
 export type AuditCountAggregateInputType = {
   id?: true
   repositoryId?: true
+  activeKey?: true
   status?: true
   startedAt?: true
   completedAt?: true
@@ -200,6 +206,7 @@ export type AuditGroupByArgs<ExtArgs extends runtime.Types.Extensions.InternalAr
 export type AuditGroupByOutputType = {
   id: string
   repositoryId: string
+  activeKey: string | null
   status: $Enums.AuditStatus
   startedAt: Date | null
   completedAt: Date | null
@@ -234,6 +241,7 @@ export type AuditWhereInput = {
   NOT?: Prisma.AuditWhereInput | Prisma.AuditWhereInput[]
   id?: Prisma.StringFilter<"Audit"> | string
   repositoryId?: Prisma.StringFilter<"Audit"> | string
+  activeKey?: Prisma.StringNullableFilter<"Audit"> | string | null
   status?: Prisma.EnumAuditStatusFilter<"Audit"> | $Enums.AuditStatus
   startedAt?: Prisma.DateTimeNullableFilter<"Audit"> | Date | string | null
   completedAt?: Prisma.DateTimeNullableFilter<"Audit"> | Date | string | null
@@ -248,6 +256,7 @@ export type AuditWhereInput = {
 export type AuditOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   repositoryId?: Prisma.SortOrder
+  activeKey?: Prisma.SortOrderInput | Prisma.SortOrder
   status?: Prisma.SortOrder
   startedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   completedAt?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -261,6 +270,7 @@ export type AuditOrderByWithRelationInput = {
 
 export type AuditWhereUniqueInput = Prisma.AtLeast<{
   id?: string
+  activeKey?: string
   AND?: Prisma.AuditWhereInput | Prisma.AuditWhereInput[]
   OR?: Prisma.AuditWhereInput[]
   NOT?: Prisma.AuditWhereInput | Prisma.AuditWhereInput[]
@@ -274,11 +284,12 @@ export type AuditWhereUniqueInput = Prisma.AtLeast<{
   repository?: Prisma.XOR<Prisma.RepositoryScalarRelationFilter, Prisma.RepositoryWhereInput>
   issues?: Prisma.IssueListRelationFilter
   metrics?: Prisma.XOR<Prisma.AnalysisMetricsNullableScalarRelationFilter, Prisma.AnalysisMetricsWhereInput> | null
-}, "id">
+}, "id" | "activeKey">
 
 export type AuditOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   repositoryId?: Prisma.SortOrder
+  activeKey?: Prisma.SortOrderInput | Prisma.SortOrder
   status?: Prisma.SortOrder
   startedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   completedAt?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -298,6 +309,7 @@ export type AuditScalarWhereWithAggregatesInput = {
   NOT?: Prisma.AuditScalarWhereWithAggregatesInput | Prisma.AuditScalarWhereWithAggregatesInput[]
   id?: Prisma.StringWithAggregatesFilter<"Audit"> | string
   repositoryId?: Prisma.StringWithAggregatesFilter<"Audit"> | string
+  activeKey?: Prisma.StringNullableWithAggregatesFilter<"Audit"> | string | null
   status?: Prisma.EnumAuditStatusWithAggregatesFilter<"Audit"> | $Enums.AuditStatus
   startedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Audit"> | Date | string | null
   completedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Audit"> | Date | string | null
@@ -308,6 +320,7 @@ export type AuditScalarWhereWithAggregatesInput = {
 
 export type AuditCreateInput = {
   id?: string
+  activeKey?: string | null
   status?: $Enums.AuditStatus
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -322,6 +335,7 @@ export type AuditCreateInput = {
 export type AuditUncheckedCreateInput = {
   id?: string
   repositoryId: string
+  activeKey?: string | null
   status?: $Enums.AuditStatus
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -334,6 +348,7 @@ export type AuditUncheckedCreateInput = {
 
 export type AuditUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  activeKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.EnumAuditStatusFieldUpdateOperationsInput | $Enums.AuditStatus
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -348,6 +363,7 @@ export type AuditUpdateInput = {
 export type AuditUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   repositoryId?: Prisma.StringFieldUpdateOperationsInput | string
+  activeKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.EnumAuditStatusFieldUpdateOperationsInput | $Enums.AuditStatus
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -361,6 +377,7 @@ export type AuditUncheckedUpdateInput = {
 export type AuditCreateManyInput = {
   id?: string
   repositoryId: string
+  activeKey?: string | null
   status?: $Enums.AuditStatus
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -371,6 +388,7 @@ export type AuditCreateManyInput = {
 
 export type AuditUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  activeKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.EnumAuditStatusFieldUpdateOperationsInput | $Enums.AuditStatus
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -382,6 +400,7 @@ export type AuditUpdateManyMutationInput = {
 export type AuditUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   repositoryId?: Prisma.StringFieldUpdateOperationsInput | string
+  activeKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.EnumAuditStatusFieldUpdateOperationsInput | $Enums.AuditStatus
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -403,6 +422,7 @@ export type AuditOrderByRelationAggregateInput = {
 export type AuditCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   repositoryId?: Prisma.SortOrder
+  activeKey?: Prisma.SortOrder
   status?: Prisma.SortOrder
   startedAt?: Prisma.SortOrder
   completedAt?: Prisma.SortOrder
@@ -418,6 +438,7 @@ export type AuditAvgOrderByAggregateInput = {
 export type AuditMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   repositoryId?: Prisma.SortOrder
+  activeKey?: Prisma.SortOrder
   status?: Prisma.SortOrder
   startedAt?: Prisma.SortOrder
   completedAt?: Prisma.SortOrder
@@ -429,6 +450,7 @@ export type AuditMaxOrderByAggregateInput = {
 export type AuditMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   repositoryId?: Prisma.SortOrder
+  activeKey?: Prisma.SortOrder
   status?: Prisma.SortOrder
   startedAt?: Prisma.SortOrder
   completedAt?: Prisma.SortOrder
@@ -530,6 +552,7 @@ export type AuditUpdateOneRequiredWithoutMetricsNestedInput = {
 
 export type AuditCreateWithoutRepositoryInput = {
   id?: string
+  activeKey?: string | null
   status?: $Enums.AuditStatus
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -542,6 +565,7 @@ export type AuditCreateWithoutRepositoryInput = {
 
 export type AuditUncheckedCreateWithoutRepositoryInput = {
   id?: string
+  activeKey?: string | null
   status?: $Enums.AuditStatus
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -584,6 +608,7 @@ export type AuditScalarWhereInput = {
   NOT?: Prisma.AuditScalarWhereInput | Prisma.AuditScalarWhereInput[]
   id?: Prisma.StringFilter<"Audit"> | string
   repositoryId?: Prisma.StringFilter<"Audit"> | string
+  activeKey?: Prisma.StringNullableFilter<"Audit"> | string | null
   status?: Prisma.EnumAuditStatusFilter<"Audit"> | $Enums.AuditStatus
   startedAt?: Prisma.DateTimeNullableFilter<"Audit"> | Date | string | null
   completedAt?: Prisma.DateTimeNullableFilter<"Audit"> | Date | string | null
@@ -594,6 +619,7 @@ export type AuditScalarWhereInput = {
 
 export type AuditCreateWithoutIssuesInput = {
   id?: string
+  activeKey?: string | null
   status?: $Enums.AuditStatus
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -607,6 +633,7 @@ export type AuditCreateWithoutIssuesInput = {
 export type AuditUncheckedCreateWithoutIssuesInput = {
   id?: string
   repositoryId: string
+  activeKey?: string | null
   status?: $Enums.AuditStatus
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -634,6 +661,7 @@ export type AuditUpdateToOneWithWhereWithoutIssuesInput = {
 
 export type AuditUpdateWithoutIssuesInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  activeKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.EnumAuditStatusFieldUpdateOperationsInput | $Enums.AuditStatus
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -647,6 +675,7 @@ export type AuditUpdateWithoutIssuesInput = {
 export type AuditUncheckedUpdateWithoutIssuesInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   repositoryId?: Prisma.StringFieldUpdateOperationsInput | string
+  activeKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.EnumAuditStatusFieldUpdateOperationsInput | $Enums.AuditStatus
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -658,6 +687,7 @@ export type AuditUncheckedUpdateWithoutIssuesInput = {
 
 export type AuditCreateWithoutMetricsInput = {
   id?: string
+  activeKey?: string | null
   status?: $Enums.AuditStatus
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -671,6 +701,7 @@ export type AuditCreateWithoutMetricsInput = {
 export type AuditUncheckedCreateWithoutMetricsInput = {
   id?: string
   repositoryId: string
+  activeKey?: string | null
   status?: $Enums.AuditStatus
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -698,6 +729,7 @@ export type AuditUpdateToOneWithWhereWithoutMetricsInput = {
 
 export type AuditUpdateWithoutMetricsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  activeKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.EnumAuditStatusFieldUpdateOperationsInput | $Enums.AuditStatus
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -711,6 +743,7 @@ export type AuditUpdateWithoutMetricsInput = {
 export type AuditUncheckedUpdateWithoutMetricsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   repositoryId?: Prisma.StringFieldUpdateOperationsInput | string
+  activeKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.EnumAuditStatusFieldUpdateOperationsInput | $Enums.AuditStatus
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -722,6 +755,7 @@ export type AuditUncheckedUpdateWithoutMetricsInput = {
 
 export type AuditCreateManyRepositoryInput = {
   id?: string
+  activeKey?: string | null
   status?: $Enums.AuditStatus
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -732,6 +766,7 @@ export type AuditCreateManyRepositoryInput = {
 
 export type AuditUpdateWithoutRepositoryInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  activeKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.EnumAuditStatusFieldUpdateOperationsInput | $Enums.AuditStatus
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -744,6 +779,7 @@ export type AuditUpdateWithoutRepositoryInput = {
 
 export type AuditUncheckedUpdateWithoutRepositoryInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  activeKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.EnumAuditStatusFieldUpdateOperationsInput | $Enums.AuditStatus
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -756,6 +792,7 @@ export type AuditUncheckedUpdateWithoutRepositoryInput = {
 
 export type AuditUncheckedUpdateManyWithoutRepositoryInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  activeKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.EnumAuditStatusFieldUpdateOperationsInput | $Enums.AuditStatus
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -798,6 +835,7 @@ export type AuditCountOutputTypeCountIssuesArgs<ExtArgs extends runtime.Types.Ex
 export type AuditSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   repositoryId?: boolean
+  activeKey?: boolean
   status?: boolean
   startedAt?: boolean
   completedAt?: boolean
@@ -813,6 +851,7 @@ export type AuditSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
 export type AuditSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   repositoryId?: boolean
+  activeKey?: boolean
   status?: boolean
   startedAt?: boolean
   completedAt?: boolean
@@ -825,6 +864,7 @@ export type AuditSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensi
 export type AuditSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   repositoryId?: boolean
+  activeKey?: boolean
   status?: boolean
   startedAt?: boolean
   completedAt?: boolean
@@ -837,6 +877,7 @@ export type AuditSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensi
 export type AuditSelectScalar = {
   id?: boolean
   repositoryId?: boolean
+  activeKey?: boolean
   status?: boolean
   startedAt?: boolean
   completedAt?: boolean
@@ -845,7 +886,7 @@ export type AuditSelectScalar = {
   createdAt?: boolean
 }
 
-export type AuditOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "repositoryId" | "status" | "startedAt" | "completedAt" | "failedReason" | "overallScore" | "createdAt", ExtArgs["result"]["audit"]>
+export type AuditOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "repositoryId" | "activeKey" | "status" | "startedAt" | "completedAt" | "failedReason" | "overallScore" | "createdAt", ExtArgs["result"]["audit"]>
 export type AuditInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   repository?: boolean | Prisma.RepositoryDefaultArgs<ExtArgs>
   issues?: boolean | Prisma.Audit$issuesArgs<ExtArgs>
@@ -869,6 +910,7 @@ export type $AuditPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     repositoryId: string
+    activeKey: string | null
     status: $Enums.AuditStatus
     startedAt: Date | null
     completedAt: Date | null
@@ -1303,6 +1345,7 @@ export interface Prisma__AuditClient<T, Null = never, ExtArgs extends runtime.Ty
 export interface AuditFieldRefs {
   readonly id: Prisma.FieldRef<"Audit", 'String'>
   readonly repositoryId: Prisma.FieldRef<"Audit", 'String'>
+  readonly activeKey: Prisma.FieldRef<"Audit", 'String'>
   readonly status: Prisma.FieldRef<"Audit", 'AuditStatus'>
   readonly startedAt: Prisma.FieldRef<"Audit", 'DateTime'>
   readonly completedAt: Prisma.FieldRef<"Audit", 'DateTime'>

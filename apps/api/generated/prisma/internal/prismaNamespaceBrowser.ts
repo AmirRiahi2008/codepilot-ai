@@ -122,6 +122,7 @@ export type RepositoryScalarFieldEnum = (typeof RepositoryScalarFieldEnum)[keyof
 export const AuditScalarFieldEnum = {
   id: 'id',
   repositoryId: 'repositoryId',
+  activeKey: 'activeKey',
   status: 'status',
   startedAt: 'startedAt',
   completedAt: 'completedAt',

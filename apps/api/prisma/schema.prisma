@@ -83,6 +83,7 @@ model Repository {
 model Audit {
   id           String      @id @default(cuid())
   repositoryId String
+  activeKey    String?     @unique
   status       AuditStatus @default(PENDING)
   startedAt    DateTime?
   completedAt  DateTime?
