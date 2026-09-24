@@ -86,6 +86,7 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-white/[.06] bg-[#050505]/85 backdrop-blur-xl">
       <div className="mx-auto flex h-[73px] max-w-7xl items-center justify-between px-6">
+
         {/* Logo */}
         <Link
           href={authenticated ? '/dashboard' : '/'}
@@ -103,7 +104,7 @@ export function Header() {
           </span>
         </Link>
 
-        {/* Desktop navigation */}
+        {/* Desktop Navigation */}
         <nav className="hidden items-center gap-1 md:flex">
           {links.map((link) => {
             const active = pathname === link.href;
@@ -124,6 +125,7 @@ export function Header() {
             );
           })}
 
+          {/* Dashboard فقط برای کاربران لاگین‌شده */}
           {!checkingAuth && authenticated && (
             <Link
               href="/dashboard"
@@ -139,11 +141,12 @@ export function Header() {
           )}
         </nav>
 
-        {/* Right side */}
+        {/* Right Actions */}
         <div className="flex items-center gap-2">
           {checkingAuth ? (
             <div className="h-9 w-24 animate-pulse rounded-lg bg-white/[.05]" />
           ) : authenticated ? (
+            /* کاربر لاگین است → فقط Logout */
             <button
               type="button"
               onClick={handleLogout}
@@ -153,6 +156,7 @@ export function Header() {
               {loggingOut ? 'Logging out...' : 'Logout'}
             </button>
           ) : (
+            /* کاربر لاگین نیست → Login + Get Started */
             <>
               <Link
                 href="/login"
@@ -172,7 +176,7 @@ export function Header() {
         </div>
       </div>
 
-      {/* Mobile navigation */}
+      {/* Mobile Navigation */}
       <div className="border-t border-white/[.05] px-6 py-3 md:hidden">
         <nav className="flex items-center gap-2 overflow-x-auto">
           {links.map((link) => (
@@ -190,15 +194,51 @@ export function Header() {
             </Link>
           ))}
 
+          {/* Dashboard فقط برای کاربر لاگین‌شده */}
           {!checkingAuth && authenticated && (
             <Link
               href="/dashboard"
-              className="whitespace-nowrap rounded-lg px-3 py-2 text-sm text-slate-400 transition hover:bg-white/[.04] hover:text-white"
+              className={[
+                'whitespace-nowrap rounded-lg px-3 py-2 text-sm transition',
+                pathname.startsWith('/dashboard')
+                  ? 'bg-white/[.06] text-white'
+                  : 'text-slate-400 hover:bg-white/[.04] hover:text-white',
+              ].join(' ')}
             >
               Dashboard
             </Link>
           )}
         </nav>
+
+        {/* Mobile Auth Action */}
+        <div className="mt-2 flex items-center gap-2">
+          {!checkingAuth && authenticated ? (
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 transition hover:bg-white/[.04] hover:text-white disabled:opacity-50"
+            >
+              {loggingOut ? 'Logging out...' : 'Logout'}
+            </button>
+          ) : !checkingAuth ? (
+            <>
+              <Link
+                href="/login"
+                className="rounded-lg px-3 py-2 text-sm text-slate-400 transition hover:text-white"
+              >
+                Login
+              </Link>
+
+              <Link
+                href="/register"
+                className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-black transition hover:bg-slate-200"
+              >
+                Get Started
+              </Link>
+            </>
+          ) : null}
+        </div>
       </div>
     </header>
   );
