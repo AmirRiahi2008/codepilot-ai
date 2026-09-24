@@ -1,7 +1,10 @@
 import Link from 'next/link';
-
+import Navbar from "../components/Navbar";
 export default function Home() {
   return (
+    <>
+    <Navbar/>
+
     <main className="grid-bg min-h-screen">
       <section className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-6 py-20">
         <div className="max-w-3xl">
@@ -37,5 +40,6 @@ export default function Home() {
         </div>
       </section>
     </main>
+        </>
   );
 }
