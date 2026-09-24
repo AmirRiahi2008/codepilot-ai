@@ -1,3 +1,4 @@
+
 import {
   BadRequestException,
   Injectable,
@@ -15,6 +16,21 @@ const githubHeaders = {
 @Injectable()
 export class GitHubService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async status(userId: string) {
+    const account = await this.prisma.gitHubAccount.findUnique({
+      where: {
+        userId,
+      },
+      select: {
+        githubUserId: true,
+      },
+    });
+
+    return {
+      connected: Boolean(account),
+    };
+  }
 
   connectUrl(state: string) {
     const clientId = process.env.GITHUB_CLIENT_ID;
@@ -167,3 +183,4 @@ export class GitHubService {
     }));
   }
 }
+

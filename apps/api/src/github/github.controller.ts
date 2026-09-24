@@ -1,3 +1,4 @@
+
 import {
   Controller,
   Get,
@@ -84,6 +85,14 @@ export class GitHubController {
   }
 
   @UseGuards(AuthGuard)
+  @Get('status')
+  status(
+    @Req() req: Request & { userId: string },
+  ) {
+    return this.github.status(req.userId);
+  }
+
+  @UseGuards(AuthGuard)
   @Get('repositories')
   repositories(
     @Req() req: Request & { userId: string },
@@ -91,3 +100,4 @@ export class GitHubController {
     return this.github.listRepos(req.userId);
   }
 }
+
