@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import path from 'node:path';
 
+import { QStashModule } from './qstash/qstash.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -12,6 +13,7 @@ import { AuditsModule } from './audits/audits.module';
 import { IssuesModule } from './issues/issues.module';
 import { InternalModule } from './internal/internal.module';
 import { HealthController } from './health.controller';
+import { AuditRunnerModule } from './audit-runner/audit-runner.module';
 
 @Module({
   imports: [
@@ -20,6 +22,8 @@ import { HealthController } from './health.controller';
       envFilePath: path.resolve(__dirname, '../../../../.env'),
       cache: true,
     }),
+
+    QStashModule,
 
     BullModule.forRootAsync({
       imports: [ConfigModule],
@@ -41,6 +45,8 @@ import { HealthController } from './health.controller';
     AuditsModule,
     IssuesModule,
     InternalModule,
+    AuditRunnerModule,
+      
   ],
 
   controllers: [HealthController],
