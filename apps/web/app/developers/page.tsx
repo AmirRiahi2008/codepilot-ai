@@ -36,7 +36,7 @@ export default function DevelopersPage() {
             </p>
 
             <h1 className="mt-4 text-5xl font-black tracking-tight md:text-6xl">
-              Amir Reza Riahi
+              Amirreza Riahi
             </h1>
 
             <p className="mt-5 text-lg leading-8 text-zinc-400">
