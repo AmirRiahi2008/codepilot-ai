@@ -73,7 +73,9 @@ export class AuthController {
   ) {
     res.clearCookie(SESSION_COOKIE, {
       httpOnly: true,
-      sameSite: 'none',
+      sameSite: process.env.NODE_ENV === 'production'
+        ? 'none'
+        : 'lax',
       secure: process.env.NODE_ENV === 'production',
       path: '/',
     });
@@ -95,12 +97,26 @@ export class AuthController {
     res: Response,
     token: string,
   ) {
+    const isProduction =
+      process.env.NODE_ENV === 'production';
+
     res.cookie(SESSION_COOKIE, token, {
       httpOnly: true,
-      sameSite: 'none',
-      secure: process.env.NODE_ENV === 'production',
+
+      // Localhost:
+      // SameSite=Lax works without HTTPS.
+      //
+      // Production:
+      // Frontend and API are on different origins,
+      // so SameSite=None is required.
+      sameSite: isProduction ? 'none' : 'lax',
+
+      secure: isProduction,
+
       maxAge: 7 * 24 * 60 * 60 * 1000,
+
       path: '/',
     });
   }
 }
+

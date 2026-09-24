@@ -7,10 +7,6 @@ import { useEffect, useState } from 'react';
 
 import { api } from '../lib/api';
 
-type AuthState = {
-  authenticated: boolean;
-};
-
 export function Header() {
   const pathname = usePathname();
   const router = useRouter();
@@ -22,9 +18,9 @@ export function Header() {
   useEffect(() => {
     let mounted = true;
 
-    async function checkAuthentication() {
+    async function checkSession() {
       try {
-        await api<AuthState>('/auth/me');
+        await api('/auth/me');
 
         if (mounted) {
           setAuthenticated(true);
@@ -40,7 +36,7 @@ export function Header() {
       }
     }
 
-    checkAuthentication();
+    checkSession();
 
     return () => {
       mounted = false;
@@ -70,7 +66,7 @@ export function Header() {
 
   const links = [
     {
-      label: 'About',
+      label: 'About Us',
       href: '/about',
     },
     {
@@ -104,7 +100,7 @@ export function Header() {
           </span>
         </Link>
 
-        {/* Desktop Navigation */}
+        {/* Navigation */}
         <nav className="hidden items-center gap-1 md:flex">
           {links.map((link) => {
             const active = pathname === link.href;
@@ -125,7 +121,7 @@ export function Header() {
             );
           })}
 
-          {/* Dashboard فقط برای کاربران لاگین‌شده */}
+          {/* Dashboard فقط وقتی Session فعال است */}
           {!checkingAuth && authenticated && (
             <Link
               href="/dashboard"
@@ -141,12 +137,12 @@ export function Header() {
           )}
         </nav>
 
-        {/* Right Actions */}
+        {/* Authentication Actions */}
         <div className="flex items-center gap-2">
           {checkingAuth ? (
             <div className="h-9 w-24 animate-pulse rounded-lg bg-white/[.05]" />
           ) : authenticated ? (
-            /* کاربر لاگین است → فقط Logout */
+            /* Session فعال است */
             <button
               type="button"
               onClick={handleLogout}
@@ -156,7 +152,7 @@ export function Header() {
               {loggingOut ? 'Logging out...' : 'Logout'}
             </button>
           ) : (
-            /* کاربر لاگین نیست → Login + Get Started */
+            /* Session وجود ندارد */
             <>
               <Link
                 href="/login"
@@ -194,7 +190,6 @@ export function Header() {
             </Link>
           ))}
 
-          {/* Dashboard فقط برای کاربر لاگین‌شده */}
           {!checkingAuth && authenticated && (
             <Link
               href="/dashboard"
@@ -210,8 +205,7 @@ export function Header() {
           )}
         </nav>
 
-        {/* Mobile Auth Action */}
-        <div className="mt-2 flex items-center gap-2">
+        <div className="mt-2">
           {!checkingAuth && authenticated ? (
             <button
               type="button"
@@ -222,7 +216,7 @@ export function Header() {
               {loggingOut ? 'Logging out...' : 'Logout'}
             </button>
           ) : !checkingAuth ? (
-            <>
+            <div className="flex items-center gap-2">
               <Link
                 href="/login"
                 className="rounded-lg px-3 py-2 text-sm text-slate-400 transition hover:text-white"
@@ -236,7 +230,7 @@ export function Header() {
               >
                 Get Started
               </Link>
-            </>
+            </div>
           ) : null}
         </div>
       </div>
