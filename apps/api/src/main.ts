@@ -13,11 +13,20 @@ async function bootstrap() {
   app.use(cookieParser());
 
   app.enableCors({
-    origin: process.env.WEB_URL ?? 'http://localhost:3000',
+    origin:
+      process.env.WEB_URL ??
+      'http://localhost:3000',
     credentials: true,
   });
 
-  app.use(bodyParser.json({ limit: '2mb' }));
+  app.use(
+    bodyParser.json({
+      limit: '2mb',
+      verify: (req: any, _res, buffer) => {
+        req.rawBody = buffer.toString('utf8');
+      },
+    }),
+  );
 
   app.use(
     bodyParser.urlencoded({
@@ -33,7 +42,9 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(Number(process.env.API_PORT ?? 4000));
+  await app.listen(
+    Number(process.env.API_PORT ?? 4000),
+  );
 }
 
 bootstrap();
