@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import path from 'node:path';
 
 dotenv.config({
-  path: path.resolve('/Users/amirriahi/Projects/codepilot-ai/.env'),
+  path: path.resolve(process.cwd(), '../../.env'),
   override: true,
 });
 
@@ -10,12 +10,16 @@ import { Worker } from 'bullmq';
 import { runAudit } from './runner';
 
 const queueName = 'analysis';
-const redisUrl = new URL(process.env.REDIS_URL ?? 'redis://localhost:6379');
+
+const redisUrl = new URL(
+  process.env.REDIS_URL ?? 'redis://localhost:6379',
+);
 
 const worker = new Worker(
   queueName,
   async (job) => {
     if (job.name !== 'repository-audit') return;
+
     await runAudit(String(job.data.auditId));
   },
   {

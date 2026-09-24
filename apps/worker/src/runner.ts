@@ -1,14 +1,13 @@
-import dotenv from 'dotenv';
-import path from 'node:path';
-
-dotenv.config({
-  path: path.resolve('/Users/amirriahi/Projects/codepilot-ai/.env'),
-  override: true,
-});
-const apiUrl = process.env.API_URL ?? 'http://localhost:4000';
-const secret = process.env.WORKER_SECRET ?? '';
 
 async function callApi(path: string, body?: unknown) {
+  const apiUrl = process.env.API_URL ?? 'http://localhost:4000';
+  const secret = process.env.WORKER_SECRET ?? '';
+
+  console.log('WORKER SECRET DEBUG:', {
+    loaded: Boolean(secret),
+    length: secret.length,
+  });
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'x-worker-secret': secret,
@@ -21,7 +20,9 @@ async function callApi(path: string, body?: unknown) {
   });
 
   if (!response.ok) {
-    throw new Error(`API internal call failed: ${response.status} ${path}`);
+    throw new Error(
+      `API internal call failed: ${response.status} ${path}`,
+    );
   }
 
   return response.json();
@@ -42,7 +43,7 @@ export async function runAudit(auditId: string) {
   let extracted: string | undefined;
 
   try {
-    const context = await callApi(`/audits/${auditId}/context`) as {
+    const context = (await callApi(`/audits/${auditId}/context`)) as {
       repository: {
         fullName: string;
         defaultBranch: string;
@@ -58,8 +59,10 @@ export async function runAudit(auditId: string) {
     const { analyzeRepository } =
       await import('./analyzers/static-analyzer');
 
-    const { downloadAndExtractRepo: downloadRepo, cleanupRepo } =
-      await import('./github/download');
+    const {
+      downloadAndExtractRepo: downloadRepo,
+      cleanupRepo,
+    } = await import('./github/download');
 
     const { enrichWithAi } =
       await import('./ai/enrich');
@@ -113,3 +116,4 @@ export async function runAudit(auditId: string) {
     }
   }
 }
+

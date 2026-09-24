@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
+import path from 'node:path';
+
 import { DashboardModule } from './dashboard/dashboard.module';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -15,13 +17,20 @@ import { HealthController } from './health.controller';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: `${process.cwd()}/.env`,
+      envFilePath: path.resolve(__dirname, '../../../../.env'),
+      cache: true,
     }),
 
-    BullModule.forRoot({
-      connection: {
-        url: process.env.REDIS_URL ?? 'redis://localhost:6379',
-      },
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        connection: {
+          url:
+            configService.get<string>('REDIS_URL') ??
+            'redis://localhost:6379',
+        },
+      }),
     }),
 
     PrismaModule,
