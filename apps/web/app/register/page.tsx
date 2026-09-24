@@ -33,7 +33,7 @@ export default function RegisterPage() {
         }),
       });
 
-      router.push('/dashboard');
+      router.push('/login');
     } catch (err) {
       setError(
         err instanceof Error
