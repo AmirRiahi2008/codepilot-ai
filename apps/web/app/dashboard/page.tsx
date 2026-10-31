@@ -1,10 +1,15 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import { Header } from '../../components/Header';
-import { api, API_URL } from '../../lib/api';
+import { api, ApiError, API_URL } from '../../lib/api';
+import {
+  auditStatusStyles as statusStyles,
+  type AuditStatus,
+} from '../../lib/audit-status';
 
 type Repo = {
   id: string;
@@ -19,18 +24,6 @@ type Repo = {
   };
 };
 
-type GithubRepo = {
-  githubId: string;
-  name: string;
-  fullName: string;
-  owner: string;
-  defaultBranch: string;
-  language?: string;
-  isPrivate: boolean;
-  stars: number;
-  pushedAt?: string;
-};
-
 type GithubStatus = {
   connected: boolean;
 };
@@ -38,11 +31,7 @@ type GithubStatus = {
 type DashboardAudit = {
   id: string;
   repositoryId: string;
-  status:
-    | 'PENDING'
-    | 'RUNNING'
-    | 'COMPLETED'
-    | 'FAILED';
+  status: AuditStatus;
   overallScore?: number | null;
   createdAt: string;
   repository: {
@@ -83,17 +72,6 @@ type DashboardData = {
   latestAudits: DashboardAudit[];
 };
 
-const statusStyles: Record<DashboardAudit['status'], string> = {
-  COMPLETED:
-    'border-emerald-400/20 bg-emerald-400/10 text-emerald-300',
-  RUNNING:
-    'border-cyan-400/20 bg-cyan-400/10 text-cyan-300',
-  PENDING:
-    'border-amber-400/20 bg-amber-400/10 text-amber-300',
-  FAILED:
-    'border-red-400/20 bg-red-400/10 text-red-300',
-};
-
 function formatStatus(status: DashboardAudit['status']) {
   return status.charAt(0) + status.slice(1).toLowerCase();
 }
@@ -124,72 +102,78 @@ function timeAgo(date: string) {
 }
 
 export default function Dashboard() {
+  const router = useRouter();
   const [repos, setRepos] = useState<Repo[]>([]);
-  const [dashboard, setDashboard] =
-    useState<DashboardData | null>(null);
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
 
-  const [githubConnected, setGithubConnected] =
-    useState(false);
+  const [githubConnected, setGithubConnected] = useState(false);
 
-  const [githubStatusLoading, setGithubStatusLoading] =
-    useState(true);
+  const [githubStatusLoading, setGithubStatusLoading] = useState(true);
 
-  const [connectingGithub, setConnectingGithub] =
-    useState(false);
+  const [connectingGithub, setConnectingGithub] = useState(false);
 
   const [message, setMessage] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState('');
 
-  async function loadDashboard() {
-    const [repoData, dashboardData] =
-      await Promise.all([
-        api<Repo[]>('/repositories'),
-        api<DashboardData>('/dashboard'),
-      ]);
+  const loadDashboard = useCallback(async (signal?: AbortSignal) => {
+    const [repoData, dashboardData] = await Promise.all([
+      api<Repo[]>('/repositories', { signal }),
+      api<DashboardData>('/dashboard', { signal }),
+    ]);
 
+    if (signal?.aborted) return;
     setRepos(repoData);
     setDashboard(dashboardData);
-  }
+  }, []);
 
-  async function loadGithubStatus() {
+  const loadGithubStatus = useCallback(async (signal?: AbortSignal) => {
     setGithubStatusLoading(true);
 
     try {
-      const status = await api<GithubStatus>(
-        '/github/status',
-      );
+      const status = await api<GithubStatus>('/github/status', { signal });
 
+      if (signal?.aborted) return;
       setGithubConnected(status.connected);
     } finally {
-      setGithubStatusLoading(false);
+      if (!signal?.aborted) setGithubStatusLoading(false);
     }
-  }
-
-  useEffect(() => {
-    async function load() {
-      try {
-        await Promise.all([
-          loadDashboard(),
-          loadGithubStatus(),
-        ]);
-      } catch {
-        window.location.href = '/login';
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    load();
   }, []);
 
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      setLoading(true);
+      setLoadError('');
+      try {
+        await Promise.all([loadDashboard(signal), loadGithubStatus(signal)]);
+      } catch (error) {
+        if (signal?.aborted) return;
+        if (error instanceof ApiError && error.status === 401) {
+          router.replace('/login');
+        } else {
+          setLoadError(
+            error instanceof Error
+              ? error.message
+              : 'Failed to load dashboard.',
+          );
+        }
+      } finally {
+        if (!signal?.aborted) setLoading(false);
+      }
+    },
+    [loadDashboard, loadGithubStatus, router],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
+
   function connectGithub() {
-    if (
-      githubConnected ||
-      githubStatusLoading ||
-      connectingGithub
-    ) {
+    if (githubConnected || githubStatusLoading || connectingGithub) {
       return;
     }
 
@@ -200,10 +184,9 @@ export default function Dashboard() {
   }
 
   async function syncGithub() {
+    if (syncing) return;
     if (!githubConnected) {
-      setMessage(
-        'Connect your GitHub account before syncing repositories.',
-      );
+      setMessage('Connect your GitHub account before syncing repositories.');
       return;
     }
 
@@ -211,29 +194,15 @@ export default function Dashboard() {
     setMessage('');
 
     try {
-      const githubRepos =
-        await api<GithubRepo[]>(
-          '/github/repositories',
-        );
-
-      for (const repo of githubRepos) {
-        await api('/repositories/sync', {
-          method: 'POST',
-          body: JSON.stringify(repo),
-        });
-      }
+      const result = await api<{ count: number }>('/repositories/sync-all', {
+        method: 'POST',
+      });
 
       await loadDashboard();
 
-      setMessage(
-        `${githubRepos.length} repositories synced successfully.`,
-      );
+      setMessage(`${result.count} repositories synced successfully.`);
     } catch (e) {
-      setMessage(
-        e instanceof Error
-          ? e.message
-          : 'GitHub sync failed.',
-      );
+      setMessage(e instanceof Error ? e.message : 'GitHub sync failed.');
     } finally {
       setSyncing(false);
     }
@@ -243,20 +212,13 @@ export default function Dashboard() {
     setMessage('');
 
     try {
-      const audit = await api<{ id: string }>(
-        `/repositories/${id}/audits`,
-        {
-          method: 'POST',
-        },
-      );
+      const audit = await api<{ id: string }>(`/repositories/${id}/audits`, {
+        method: 'POST',
+      });
 
-      window.location.href = `/audits/${audit.id}`;
+      router.push(`/audits/${audit.id}`);
     } catch (e) {
-      setMessage(
-        e instanceof Error
-          ? e.message
-          : 'Failed to create audit.',
-      );
+      setMessage(e instanceof Error ? e.message : 'Failed to create audit.');
     }
   }
 
@@ -267,37 +229,25 @@ export default function Dashboard() {
 
     return repos.filter(
       (repo) =>
-        repo.name
-          .toLowerCase()
-          .includes(query) ||
-        repo.fullName
-          .toLowerCase()
-          .includes(query) ||
-        repo.language
-          ?.toLowerCase()
-          .includes(query),
+        repo.name.toLowerCase().includes(query) ||
+        repo.fullName.toLowerCase().includes(query) ||
+        repo.language?.toLowerCase().includes(query),
     );
   }, [repos, search]);
 
   const averageScore = useMemo(() => {
-    const completed =
-      dashboard?.latestAudits.filter(
-        (audit) =>
-          audit.status === 'COMPLETED' &&
-          audit.overallScore != null,
-      );
+    const completed = dashboard?.latestAudits.filter(
+      (audit) => audit.status === 'COMPLETED' && audit.overallScore != null,
+    );
 
     if (!completed?.length) return null;
 
     const total = completed.reduce(
-      (sum, audit) =>
-        sum + (audit.overallScore ?? 0),
+      (sum, audit) => sum + (audit.overallScore ?? 0),
       0,
     );
 
-    return Math.round(
-      total / completed.length,
-    );
+    return Math.round(total / completed.length);
   }, [dashboard]);
 
   return (
@@ -322,9 +272,8 @@ export default function Dashboard() {
               </h1>
 
               <p className="muted mt-3 max-w-2xl text-sm leading-6 md:text-base">
-                Monitor your repositories, run AI-powered
-                audits, and track code quality from one
-                workspace.
+                Monitor your repositories, run AI-powered audits, and track code
+                quality from one workspace.
               </p>
             </div>
 
@@ -334,9 +283,7 @@ export default function Dashboard() {
                 type="button"
                 onClick={connectGithub}
                 disabled={
-                  githubConnected ||
-                  githubStatusLoading ||
-                  connectingGithub
+                  githubConnected || githubStatusLoading || connectingGithub
                 }
                 className={`rounded-xl border px-4 py-3 text-sm font-medium transition ${
                   githubConnected
@@ -351,9 +298,7 @@ export default function Dashboard() {
                   </span>
                 ) : githubConnected ? (
                   <span className="flex items-center gap-2">
-                    <span className="text-emerald-300">
-                      ✓
-                    </span>
+                    <span className="text-emerald-300">✓</span>
                     GitHub Connected
                   </span>
                 ) : connectingGithub ? (
@@ -370,11 +315,7 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={syncGithub}
-                disabled={
-                  syncing ||
-                  githubStatusLoading ||
-                  !githubConnected
-                }
+                disabled={syncing || githubStatusLoading || !githubConnected}
                 className="rounded-xl bg-cyan-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {syncing ? (
@@ -397,49 +338,49 @@ export default function Dashboard() {
 
           {loading ? (
             <DashboardSkeleton />
+          ) : loadError ? (
+            <section role="alert" className="card mt-8 p-6">
+              <h2 className="text-lg font-semibold">
+                Unable to load your workspace
+              </h2>
+              <p className="mt-2 text-sm text-rose-300">{loadError}</p>
+              <button
+                type="button"
+                onClick={() => void load()}
+                className="mt-4 rounded-xl border border-white/15 px-4 py-2 text-sm"
+              >
+                Try again
+              </button>
+            </section>
           ) : (
             <>
               {/* Stats */}
               <section className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <StatCard
                   label="Repositories"
-                  value={
-                    dashboard?.repositories.total ??
-                    repos.length
-                  }
+                  value={dashboard?.repositories.total ?? repos.length}
                   description="Connected repositories"
                   icon="⌘"
                 />
 
                 <StatCard
                   label="Total audits"
-                  value={
-                    dashboard?.audits.total ?? 0
-                  }
+                  value={dashboard?.audits.total ?? 0}
                   description={`${dashboard?.audits.completed ?? 0} completed`}
                   icon="◈"
                 />
 
                 <StatCard
                   label="Open issues"
-                  value={
-                    dashboard?.issues.total ?? 0
-                  }
+                  value={dashboard?.issues.total ?? 0}
                   description={`${dashboard?.issues.critical ?? 0} critical · ${dashboard?.issues.high ?? 0} high`}
                   icon="!"
-                  danger={
-                    (dashboard?.issues.critical ?? 0) >
-                    0
-                  }
+                  danger={(dashboard?.issues.critical ?? 0) > 0}
                 />
 
                 <StatCard
                   label="Latest score"
-                  value={
-                    averageScore != null
-                      ? `${averageScore}%`
-                      : '—'
-                  }
+                  value={averageScore != null ? `${averageScore}%` : '—'}
                   description="From recent completed audits"
                   icon="✓"
                 />
@@ -451,9 +392,7 @@ export default function Dashboard() {
                 <div className="card overflow-hidden">
                   <div className="flex items-center justify-between border-b border-white/[.06] px-6 py-5">
                     <div>
-                      <h2 className="font-semibold">
-                        Recent audits
-                      </h2>
+                      <h2 className="font-semibold">Recent audits</h2>
 
                       <p className="muted mt-1 text-sm">
                         Latest repository analysis activity
@@ -470,80 +409,60 @@ export default function Dashboard() {
 
                   <div className="divide-y divide-white/[.06]">
                     {dashboard?.latestAudits.length ? (
-                      dashboard.latestAudits.map(
-                        (audit) => (
-                          <Link
-                            href={`/audits/${audit.id}`}
-                            key={audit.id}
-                            className="flex flex-col gap-4 px-6 py-5 transition hover:bg-white/[.025] sm:flex-row sm:items-center sm:justify-between"
-                          >
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-3">
-                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[.03] text-sm">
-                                  ◇
-                                </div>
+                      dashboard.latestAudits.map((audit) => (
+                        <Link
+                          href={`/audits/${audit.id}`}
+                          key={audit.id}
+                          className="flex flex-col gap-4 px-6 py-5 transition hover:bg-white/[.025] sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[.03] text-sm">
+                                ◇
+                              </div>
 
-                                <div className="min-w-0">
-                                  <p className="truncate text-sm font-medium">
-                                    {
-                                      audit
-                                        .repository
-                                        .fullName
-                                    }
-                                  </p>
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium">
+                                  {audit.repository.fullName}
+                                </p>
 
-                                  <p className="muted mt-1 text-xs">
-                                    {timeAgo(
-                                      audit.createdAt,
-                                    )}
-                                  </p>
-                                </div>
+                                <p className="muted mt-1 text-xs">
+                                  {timeAgo(audit.createdAt)}
+                                </p>
                               </div>
                             </div>
+                          </div>
 
-                            <div className="flex items-center gap-5">
-                              <span
-                                className={`rounded-full border px-2.5 py-1 text-xs font-medium ${statusStyles[audit.status]}`}
-                              >
-                                {formatStatus(
-                                  audit.status,
-                                )}
-                              </span>
+                          <div className="flex items-center gap-5">
+                            <span
+                              className={`rounded-full border px-2.5 py-1 text-xs font-medium ${statusStyles[audit.status]}`}
+                            >
+                              {formatStatus(audit.status)}
+                            </span>
 
-                              <span
-                                className={`w-12 text-right text-sm font-semibold ${scoreTone(
-                                  audit.overallScore,
-                                )}`}
-                              >
-                                {audit.overallScore !=
-                                null
-                                  ? audit.overallScore
-                                  : '—'}
-                              </span>
+                            <span
+                              className={`w-12 text-right text-sm font-semibold ${scoreTone(
+                                audit.overallScore,
+                              )}`}
+                            >
+                              {audit.overallScore != null
+                                ? audit.overallScore
+                                : '—'}
+                            </span>
 
-                              <span className="muted w-16 text-right text-xs">
-                                {
-                                  audit._count
-                                    .issues
-                                }{' '}
-                                {audit._count
-                                  .issues === 1
-                                  ? 'issue'
-                                  : 'issues'}
-                              </span>
-                            </div>
-                          </Link>
-                        ),
-                      )
+                            <span className="muted w-16 text-right text-xs">
+                              {audit._count.issues}{' '}
+                              {audit._count.issues === 1 ? 'issue' : 'issues'}
+                            </span>
+                          </div>
+                        </Link>
+                      ))
                     ) : (
                       <div className="px-6 py-12 text-center">
-                        <p className="font-medium">
-                          No audits yet
-                        </p>
+                        <p className="font-medium">No audits yet</p>
 
                         <p className="muted mt-2 text-sm">
-                          Run your first repository
-                          analysis below.
+                          Run your first repository analysis below.
                         </p>
                       </div>
                     )}
@@ -553,9 +472,7 @@ export default function Dashboard() {
                 {/* Issue overview */}
                 <div className="card p-6">
                   <div>
-                    <h2 className="font-semibold">
-                      Issue overview
-                    </h2>
+                    <h2 className="font-semibold">Issue overview</h2>
 
                     <p className="muted mt-1 text-sm">
                       Findings across your audits
@@ -565,56 +482,41 @@ export default function Dashboard() {
                   <div className="mt-7 space-y-5">
                     <IssueRow
                       label="Critical"
-                      value={
-                        dashboard?.issues
-                          .critical ?? 0
-                      }
+                      value={dashboard?.issues.critical ?? 0}
                       className="text-red-300"
                     />
 
                     <IssueRow
                       label="High"
-                      value={
-                        dashboard?.issues.high ?? 0
-                      }
+                      value={dashboard?.issues.high ?? 0}
                       className="text-orange-300"
                     />
 
                     <IssueRow
                       label="Medium"
-                      value={
-                        dashboard?.issues.medium ?? 0
-                      }
+                      value={dashboard?.issues.medium ?? 0}
                       className="text-amber-300"
                     />
 
                     <IssueRow
                       label="Low"
-                      value={
-                        dashboard?.issues.low ?? 0
-                      }
+                      value={dashboard?.issues.low ?? 0}
                       className="text-blue-300"
                     />
 
                     <IssueRow
                       label="Info"
-                      value={
-                        dashboard?.issues.info ?? 0
-                      }
+                      value={dashboard?.issues.info ?? 0}
                       className="text-slate-300"
                     />
                   </div>
 
                   <div className="mt-7 border-t border-white/[.06] pt-5">
                     <div className="flex items-center justify-between">
-                      <span className="muted text-sm">
-                        Audit status
-                      </span>
+                      <span className="muted text-sm">Audit status</span>
 
                       <span className="text-sm">
-                        {dashboard?.audits.running ??
-                          0}{' '}
-                        running
+                        {dashboard?.audits.running ?? 0} running
                       </span>
                     </div>
 
@@ -626,10 +528,8 @@ export default function Dashboard() {
                             dashboard?.audits.total
                               ? Math.min(
                                   100,
-                                  (dashboard.audits
-                                    .completed /
-                                    dashboard.audits
-                                      .total) *
+                                  (dashboard.audits.completed /
+                                    dashboard.audits.total) *
                                     100,
                                 )
                               : 0
@@ -640,15 +540,11 @@ export default function Dashboard() {
 
                     <div className="mt-2 flex justify-between text-xs">
                       <span className="muted">
-                        {dashboard?.audits
-                          .completed ?? 0}{' '}
-                        completed
+                        {dashboard?.audits.completed ?? 0} completed
                       </span>
 
                       <span className="muted">
-                        {dashboard?.audits.total ??
-                          0}{' '}
-                        total
+                        {dashboard?.audits.total ?? 0} total
                       </span>
                     </div>
                   </div>
@@ -659,22 +555,17 @@ export default function Dashboard() {
               <section className="mt-6">
                 <div className="mb-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                   <div>
-                    <h2 className="text-xl font-semibold">
-                      Repositories
-                    </h2>
+                    <h2 className="text-xl font-semibold">Repositories</h2>
 
                     <p className="muted mt-1 text-sm">
-                      Select a repository to inspect or
-                      analyze it.
+                      Select a repository to inspect or analyze it.
                     </p>
                   </div>
 
                   <div className="relative">
                     <input
                       value={search}
-                      onChange={(event) =>
-                        setSearch(event.target.value)
-                      }
+                      onChange={(event) => setSearch(event.target.value)}
                       placeholder="Search repositories..."
                       className="w-full rounded-xl border border-white/10 bg-white/[.03] px-4 py-2.5 text-sm outline-none transition placeholder:text-slate-600 focus:border-cyan-300/40 sm:w-72"
                     />
@@ -683,75 +574,58 @@ export default function Dashboard() {
 
                 {filteredRepos.length ? (
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {filteredRepos.map(
-                      (repo) => (
-                        <div
-                          className="card group p-5 transition hover:-translate-y-0.5 hover:border-white/15"
-                          key={repo.id}
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="min-w-0">
-                              <Link
-                                href={`/repositories/${repo.id}`}
-                                className="block truncate font-medium transition hover:text-cyan-200"
-                              >
-                                {repo.fullName}
-                              </Link>
-
-                              <div className="muted mt-2 flex items-center gap-2 text-xs">
-                                <span>
-                                  {repo.language ??
-                                    'Unknown language'}
-                                </span>
-
-                                <span>·</span>
-
-                                <span>
-                                  ★{' '}
-                                  {repo.stars ?? 0}
-                                </span>
-                              </div>
-                            </div>
-
-                            <span className="shrink-0 rounded-full border border-white/10 px-2 py-1 text-xs text-slate-400">
-                              {repo._count
-                                ?.audits ?? 0}{' '}
-                              audits
-                            </span>
-                          </div>
-
-                          <div className="mt-5 flex gap-2">
-                            <button
-                              onClick={() =>
-                                startAudit(
-                                  repo.id,
-                                )
-                              }
-                              className="flex-1 rounded-lg bg-cyan-300 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
-                            >
-                              Analyze
-                            </button>
-
+                    {filteredRepos.map((repo) => (
+                      <div
+                        className="card group p-5 transition hover:-translate-y-0.5 hover:border-white/15"
+                        key={repo.id}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0">
                             <Link
                               href={`/repositories/${repo.id}`}
-                              className="rounded-lg border border-white/10 px-4 py-2 text-sm transition hover:bg-white/[.04]"
+                              className="block truncate font-medium transition hover:text-cyan-200"
                             >
-                              Details
+                              {repo.fullName}
                             </Link>
+
+                            <div className="muted mt-2 flex items-center gap-2 text-xs">
+                              <span>{repo.language ?? 'Unknown language'}</span>
+
+                              <span>·</span>
+
+                              <span>★ {repo.stars ?? 0}</span>
+                            </div>
                           </div>
+
+                          <span className="shrink-0 rounded-full border border-white/10 px-2 py-1 text-xs text-slate-400">
+                            {repo._count?.audits ?? 0} audits
+                          </span>
                         </div>
-                      ),
-                    )}
+
+                        <div className="mt-5 flex gap-2">
+                          <button
+                            onClick={() => startAudit(repo.id)}
+                            className="flex-1 rounded-lg bg-cyan-300 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
+                          >
+                            Analyze
+                          </button>
+
+                          <Link
+                            href={`/repositories/${repo.id}`}
+                            className="rounded-lg border border-white/10 px-4 py-2 text-sm transition hover:bg-white/[.04]"
+                          >
+                            Details
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : (
                   <div className="card p-10 text-center">
-                    <p className="font-medium">
-                      No repositories found
-                    </p>
+                    <p className="font-medium">No repositories found</p>
 
                     <p className="muted mt-2 text-sm">
-                      Try another search or sync your
-                      GitHub repositories.
+                      Try another search or sync your GitHub repositories.
                     </p>
                   </div>
                 )}
@@ -770,10 +644,7 @@ function DashboardSkeleton() {
       {/* Stats */}
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[1, 2, 3, 4].map((item) => (
-          <div
-            key={item}
-            className="card h-32 animate-pulse p-5"
-          >
+          <div key={item} className="card h-32 animate-pulse p-5">
             <div className="flex items-start justify-between">
               <div className="space-y-3">
                 <div className="h-3 w-24 rounded bg-white/[.06]" />
@@ -828,10 +699,7 @@ function DashboardSkeleton() {
 
           <div className="mt-8 space-y-6">
             {[1, 2, 3, 4, 5].map((item) => (
-              <div
-                key={item}
-                className="flex items-center justify-between"
-              >
+              <div key={item} className="flex items-center justify-between">
                 <div className="h-3 w-20 animate-pulse rounded bg-white/[.06]" />
                 <div className="h-3 w-8 animate-pulse rounded bg-white/[.06]" />
               </div>
@@ -862,10 +730,7 @@ function DashboardSkeleton() {
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {[1, 2, 3, 4, 5, 6].map((item) => (
-            <div
-              key={item}
-              className="card h-40 animate-pulse p-5"
-            >
+            <div key={item} className="card h-40 animate-pulse p-5">
               <div className="flex items-start justify-between">
                 <div className="space-y-3">
                   <div className="h-4 w-36 rounded bg-white/[.08]" />
@@ -922,9 +787,7 @@ function StatCard({
     <div className="card p-5 transition hover:border-white/15">
       <div className="flex items-start justify-between">
         <div>
-          <p className="muted text-sm">
-            {label}
-          </p>
+          <p className="muted text-sm">{label}</p>
 
           <p
             className={`mt-3 text-3xl font-semibold tracking-tight ${
@@ -940,9 +803,7 @@ function StatCard({
         </div>
       </div>
 
-      <p className="muted mt-4 text-xs">
-        {description}
-      </p>
+      <p className="muted mt-4 text-xs">{description}</p>
     </div>
   );
 }
@@ -959,20 +820,12 @@ function IssueRow({
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-3">
-        <span
-          className={`h-2 w-2 rounded-full bg-current ${className}`}
-        />
+        <span className={`h-2 w-2 rounded-full bg-current ${className}`} />
 
-        <span className="text-sm text-slate-300">
-          {label}
-        </span>
+        <span className="text-sm text-slate-300">{label}</span>
       </div>
 
-      <span
-        className={`text-sm font-semibold ${className}`}
-      >
-        {value}
-      </span>
+      <span className={`text-sm font-semibold ${className}`}>{value}</span>
     </div>
   );
 }

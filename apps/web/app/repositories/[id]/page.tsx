@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -6,6 +5,11 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { Header } from '../../../components/Header';
 import { api } from '../../../lib/api';
+import {
+  auditStatusStyles as statusStyles,
+  isProcessing,
+  type AuditStatus,
+} from '../../../lib/audit-status';
 
 type Repository = {
   id: string;
@@ -25,7 +29,7 @@ type Repository = {
 
 type Audit = {
   id: string;
-  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+  status: AuditStatus;
   overallScore: number | null;
   createdAt: string;
   completedAt: string | null;
@@ -37,13 +41,6 @@ type Audit = {
     qualityScore: number;
     testingScore: number;
   } | null;
-};
-
-const statusStyles: Record<Audit['status'], string> = {
-  PENDING: 'border-amber-400/20 bg-amber-400/10 text-amber-200',
-  RUNNING: 'border-cyan-400/20 bg-cyan-400/10 text-cyan-200',
-  COMPLETED: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-200',
-  FAILED: 'border-rose-400/20 bg-rose-400/10 text-rose-200',
 };
 
 function scoreColor(score: number | null) {
@@ -102,6 +99,7 @@ export default function RepositoryPage() {
   }, [params.id]);
 
   async function startAudit() {
+    if (starting) return;
     try {
       setStarting(true);
       setError('');
@@ -115,9 +113,7 @@ export default function RepositoryPage() {
 
       router.push(`/audits/${audit.id}`);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to start audit',
-      );
+      setError(err instanceof Error ? err.message : 'Failed to start audit');
       setStarting(false);
     }
   }
@@ -128,10 +124,7 @@ export default function RepositoryPage() {
   );
 
   const runningAudit = useMemo(
-    () =>
-      audits.find(
-        (audit) => audit.status === 'RUNNING' || audit.status === 'PENDING',
-      ),
+    () => audits.find((audit) => isProcessing(audit.status)),
     [audits],
   );
 
@@ -233,10 +226,7 @@ export default function RepositoryPage() {
                     value={repository.language ?? 'Unknown'}
                   />
 
-                  <InfoPill
-                    label="Branch"
-                    value={repository.defaultBranch}
-                  />
+                  <InfoPill label="Branch" value={repository.defaultBranch} />
 
                   <InfoPill
                     label="Audits"
@@ -334,9 +324,7 @@ export default function RepositoryPage() {
               <div>
                 <p className="text-sm text-cyan-300">Analysis history</p>
 
-                <h2 className="mt-1 text-2xl font-semibold">
-                  Audit history
-                </h2>
+                <h2 className="mt-1 text-2xl font-semibold">Audit history</h2>
 
                 <p className="muted mt-1 text-sm">
                   Every analysis run for this repository.
@@ -354,9 +342,7 @@ export default function RepositoryPage() {
                   ◈
                 </div>
 
-                <h3 className="mt-4 text-lg font-medium">
-                  No audits yet
-                </h3>
+                <h3 className="mt-4 text-lg font-medium">No audits yet</h3>
 
                 <p className="muted mx-auto mt-2 max-w-md text-sm leading-6">
                   Run your first analysis to inspect this repository and
@@ -401,12 +387,11 @@ export default function RepositoryPage() {
                           Started {formatDate(audit.createdAt)}
                         </p>
 
-                        {audit.status === 'FAILED' &&
-                          audit.failedReason && (
-                            <p className="mt-2 text-xs text-rose-300">
-                              {audit.failedReason}
-                            </p>
-                          )}
+                        {audit.status === 'FAILED' && audit.failedReason && (
+                          <p className="mt-2 text-xs text-rose-300">
+                            {audit.failedReason}
+                          </p>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-8">
@@ -466,15 +451,9 @@ export default function RepositoryPage() {
 
           {/* Repository metadata */}
           <section className="mt-10 grid gap-4 md:grid-cols-3">
-            <InfoCard
-              title="Repository owner"
-              value={repository.owner}
-            />
+            <InfoCard title="Repository owner" value={repository.owner} />
 
-            <InfoCard
-              title="Default branch"
-              value={repository.defaultBranch}
-            />
+            <InfoCard title="Default branch" value={repository.defaultBranch} />
 
             <InfoCard
               title="Last push"
@@ -491,38 +470,22 @@ export default function RepositoryPage() {
   );
 }
 
-function InfoPill({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
+function InfoPill({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-white/10 bg-white/[.025] px-3 py-2">
       <span className="text-xs text-slate-500">{label}</span>
-      <span className="ml-2 text-xs font-medium text-slate-200">
-        {value}
-      </span>
+      <span className="ml-2 text-xs font-medium text-slate-200">{value}</span>
     </div>
   );
 }
 
-function MetricCard({
-  label,
-  score,
-}: {
-  label: string;
-  score: number;
-}) {
+function MetricCard({ label, score }: { label: string; score: number }) {
   return (
     <div className="card p-4">
       <p className="muted text-xs">{label}</p>
 
       <div className="mt-2 flex items-end justify-between">
-        <span
-          className={`text-xl font-semibold ${scoreColor(score)}`}
-        >
+        <span className={`text-xl font-semibold ${scoreColor(score)}`}>
           {score}
         </span>
 
@@ -539,13 +502,7 @@ function MetricCard({
   );
 }
 
-function MiniMetric({
-  label,
-  score,
-}: {
-  label: string;
-  score: number;
-}) {
+function MiniMetric({ label, score }: { label: string; score: number }) {
   return (
     <div className="rounded-lg border border-white/[.06] bg-black/10 px-3 py-2">
       <p className="text-xs text-slate-500">{label}</p>
@@ -557,13 +514,7 @@ function MiniMetric({
   );
 }
 
-function InfoCard({
-  title,
-  value,
-}: {
-  title: string;
-  value: string;
-}) {
+function InfoCard({ title, value }: { title: string; value: string }) {
   return (
     <div className="card p-5">
       <p className="muted text-xs uppercase tracking-wider">{title}</p>
@@ -574,4 +525,3 @@ function InfoCard({
     </div>
   );
 }
-

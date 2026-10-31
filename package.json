@@ -21,7 +21,8 @@
     "typecheck": "npm run typecheck:api && npm run typecheck:worker && npm run typecheck:web",
     "typecheck:api": "npm --workspace apps/api run typecheck",
     "typecheck:worker": "npm --workspace apps/worker run typecheck",
-    "typecheck:web": "npm --workspace apps/web run typecheck"
+    "typecheck:web": "npm --workspace apps/web run typecheck",
+    "test": "npm run build:api && node --import tsx --test tests/*.test.mts"
   },
   "devDependencies": {
     "prettier": "^3.6.2",

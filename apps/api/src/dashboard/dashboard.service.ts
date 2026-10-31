@@ -6,90 +6,68 @@ export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getOverview(userId: string) {
-    const [
-      totalRepositories,
-      totalAudits,
-      completedAudits,
-      runningAudits,
-      pendingAudits,
-      failedAudits,
-      issueCounts,
-      latestAudits,
-    ] = await Promise.all([
-      this.prisma.repository.count({
-        where: { userId },
-      }),
+    const [totalRepositories, auditCounts, issueCounts, latestAudits] =
+      await Promise.all([
+        this.prisma.repository.count({
+          where: { userId },
+        }),
 
-      this.prisma.audit.count({
-        where: {
-          repository: { userId },
-        },
-      }),
+        this.prisma.audit.groupBy({
+          by: ['status'],
+          where: { repository: { userId } },
+          _count: { _all: true },
+        }),
 
-      this.prisma.audit.count({
-        where: {
-          repository: { userId },
-          status: 'COMPLETED',
-        },
-      }),
+        this.prisma.issue.groupBy({
+          by: ['severity'],
+          where: {
+            audit: {
+              repository: { userId },
+            },
+          },
+          _count: {
+            _all: true,
+          },
+        }),
 
-      this.prisma.audit.count({
-        where: {
-          repository: { userId },
-          status: 'RUNNING',
-        },
-      }),
-
-      this.prisma.audit.count({
-        where: {
-          repository: { userId },
-          status: 'PENDING',
-        },
-      }),
-
-      this.prisma.audit.count({
-        where: {
-          repository: { userId },
-          status: 'FAILED',
-        },
-      }),
-
-      this.prisma.issue.groupBy({
-        by: ['severity'],
-        where: {
-          audit: {
+        this.prisma.audit.findMany({
+          where: {
             repository: { userId },
           },
-        },
-        _count: {
-          _all: true,
-        },
-      }),
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 5,
+          include: {
+            repository: {
+              select: {
+                name: true,
+                fullName: true,
+              },
+            },
+            metrics: true,
+            _count: {
+              select: {
+                issues: true,
+              },
+            },
+          },
+        }),
+      ]);
 
-      this.prisma.audit.findMany({
-        where: {
-          repository: { userId },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        take: 5,
-        include: {
-          repository: {
-            select: {
-              name: true,
-              fullName: true,
-            },
-          },
-          metrics: true,
-          _count: {
-            select: {
-              issues: true,
-            },
-          },
-        },
-      }),
-    ]);
+    const counts = Object.fromEntries(
+      auditCounts.map((item) => [item.status, item._count._all]),
+    );
+    const totalAudits = auditCounts.reduce(
+      (sum, item) => sum + item._count._all,
+      0,
+    );
+    const runningAudits = [
+      'RUNNING',
+      'DOWNLOADING',
+      'SCANNING',
+      'AI_ANALYSIS',
+    ].reduce((sum, status) => sum + (counts[status] ?? 0), 0);
 
     const issues = {
       total: 0,
@@ -131,10 +109,10 @@ export class DashboardService {
 
       audits: {
         total: totalAudits,
-        completed: completedAudits,
+        completed: counts.COMPLETED ?? 0,
         running: runningAudits,
-        pending: pendingAudits,
-        failed: failedAudits,
+        pending: counts.PENDING ?? 0,
+        failed: counts.FAILED ?? 0,
       },
 
       issues,

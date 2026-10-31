@@ -84,6 +84,59 @@ npm run dev:web
 
 Open http://localhost:3000.
 
+## Web/API deployment and troubleshooting
+
+The browser calls `/api/v1` on the web domain. The Next.js gateway forwards
+these requests to NestJS and stores the httpOnly session on the web domain.
+This avoids cross-site cookie restrictions and browser access to the Render
+hostname. Internal worker endpoints are not exposed by this gateway.
+
+On the Vercel **web** project, set `API_ORIGIN` to the public NestJS origin
+(for example, `https://your-api.onrender.com`). An existing
+`NEXT_PUBLIC_API_URL` ending in `/api/v1` is also supported as a fallback.
+Never point either variable at the web domain. Set Vercel's Root Directory to
+`apps/web` and use its `npm run build` command, then redeploy after changing
+environment variables. Local web development defaults to `http://localhost:4000`;
+put any override in `apps/web/.env.local`.
+
+For an existing Render **API** service, run these commands from the repository root:
+
+```bash
+# Build command
+npm ci && npm run db:generate && npm run build:api
+
+# Start command
+npm --workspace apps/api start
+```
+
+The compiled entry point is `apps/api/dist/src/main.js`, not `dist/main.js`.
+The API binds to `0.0.0.0` and honors Render's `PORT` before `API_PORT`.
+Use `/api/v1/health` for its health check. Configure `DATABASE_URL`,
+`JWT_SECRET`, `WORKER_SECRET`, `WEB_URL` (the web origin), and `API_URL`
+(the API origin) on the API service. Existing database schemas are not changed
+by the build command; schema changes require a separate reviewed database step.
+
+Audit delivery currently uses **QStash**. Set `QSTASH_TOKEN`,
+`QSTASH_CURRENT_SIGNING_KEY`, and `QSTASH_NEXT_SIGNING_KEY` on the API,
+with a publicly reachable `API_URL`. The optional BullMQ worker does not receive
+jobs from the current QStash producer. Authentication and browsing can start
+without QStash; starting an audit returns a clear service-unavailable error
+until delivery is configured. The GitHub OAuth callback stays on the API:
+`https://your-api.onrender.com/api/v1/github/callback`.
+
+Requests time out instead of loading indefinitely. A `401` means the session
+needs a login; temporary API failures stay on the dashboard with a retry action.
+Check both the web gateway's `/api/v1/health` and the API health endpoint when
+diagnosing a deployment. A successful static home page does not verify the API.
+
+Run the regression checks before deploying:
+
+```bash
+npm run typecheck
+npm test
+npm run build:web
+```
+
 ## GitHub OAuth local setup
 
 Create a GitHub OAuth App and set the callback URL to:

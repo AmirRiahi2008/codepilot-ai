@@ -1,19 +1,31 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Client } from '@upstash/qstash';
 
 @Injectable()
 export class QStashService {
   constructor(
-    private readonly client: Client,
+    @Inject(Client) private readonly client: Client | null,
     private readonly config: ConfigService,
   ) {}
 
   async enqueueAudit(auditId: string) {
-    const apiUrl = this.config.get<string>('API_URL');
+    const apiUrl = this.config.get<string>('API_URL')?.replace(/\/+$/, '');
 
-    if (!apiUrl) {
-      throw new Error('API_URL is not configured');
+    if (
+      !apiUrl ||
+      !this.client ||
+      !this.config.get<string>('QSTASH_CURRENT_SIGNING_KEY')?.trim() ||
+      !this.config.get<string>('QSTASH_NEXT_SIGNING_KEY')?.trim() ||
+      !this.config.get<string>('WORKER_SECRET')?.trim()
+    ) {
+      throw new ServiceUnavailableException(
+        'Repository analysis is not configured. Please contact the site administrator.',
+      );
     }
 
     return this.client.publishJSON({
