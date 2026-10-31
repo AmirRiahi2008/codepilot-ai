@@ -7,26 +7,13 @@ import { PrismaService } from '../prisma/prisma.service';
 import { decryptSecret } from '../common/crypto';
 
 type AuditProgressStatus =
-  | 'RUNNING'
-  | 'DOWNLOADING'
-  | 'SCANNING'
-  | 'AI_ANALYSIS';
+  'RUNNING' | 'DOWNLOADING' | 'SCANNING' | 'AI_ANALYSIS';
 
 @Injectable()
 export class InternalService {
   constructor(private readonly prisma: PrismaService) {}
 
   private assertSecret(secret: string | undefined) {
-    console.log('API WORKER SECRET DEBUG:', {
-  received: Boolean(secret),
-  receivedLength: secret?.length ?? 0,
-  receivedPrefix: secret?.slice(0, 4),
-  receivedSuffix: secret?.slice(-4),
-  envLoaded: Boolean(process.env.WORKER_SECRET),
-  envLength: process.env.WORKER_SECRET?.length ?? 0,
-  envPrefix: process.env.WORKER_SECRET?.slice(0, 4),
-  envSuffix: process.env.WORKER_SECRET?.slice(-4),
-});
     if (!secret || secret !== process.env.WORKER_SECRET) {
       throw new UnauthorizedException('Invalid worker secret');
     }

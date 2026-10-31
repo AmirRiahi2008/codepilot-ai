@@ -12,10 +12,10 @@ import { QStashService } from './qstash.service';
       provide: Client,
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        const token = config.get<string>('QSTASH_TOKEN');
+        const token = config.get<string>('QSTASH_TOKEN')?.trim();
 
         if (!token) {
-          throw new Error('QSTASH_TOKEN is not configured');
+          return null;
         }
 
         return new Client({
@@ -27,23 +27,14 @@ import { QStashService } from './qstash.service';
       provide: Receiver,
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        const currentSigningKey =
-          config.get<string>(
-            'QSTASH_CURRENT_SIGNING_KEY',
-          );
+        const currentSigningKey = config.get<string>(
+          'QSTASH_CURRENT_SIGNING_KEY',
+        );
 
-        const nextSigningKey =
-          config.get<string>(
-            'QSTASH_NEXT_SIGNING_KEY',
-          );
+        const nextSigningKey = config.get<string>('QSTASH_NEXT_SIGNING_KEY');
 
-        if (
-          !currentSigningKey ||
-          !nextSigningKey
-        ) {
-          throw new Error(
-            'QStash signing keys are not configured',
-          );
+        if (!currentSigningKey || !nextSigningKey) {
+          return null;
         }
 
         return new Receiver({
@@ -55,10 +46,6 @@ import { QStashService } from './qstash.service';
 
     QStashService,
   ],
-  exports: [
-    Client,
-    Receiver,
-    QStashService,
-  ],
+  exports: [Client, Receiver, QStashService],
 })
 export class QStashModule {}

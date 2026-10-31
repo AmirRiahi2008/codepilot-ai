@@ -19,7 +19,10 @@ import { AuditRunnerModule } from './audit-runner/audit-runner.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: path.resolve(__dirname, '../../../../.env'),
+      envFilePath: [
+        path.resolve(process.cwd(), '.env'),
+        path.resolve(process.cwd(), '../../.env'),
+      ],
       cache: true,
     }),
 
@@ -31,8 +34,7 @@ import { AuditRunnerModule } from './audit-runner/audit-runner.module';
       useFactory: (configService: ConfigService) => ({
         connection: {
           url:
-            configService.get<string>('REDIS_URL') ??
-            'redis://localhost:6379',
+            configService.get<string>('REDIS_URL') ?? 'redis://localhost:6379',
         },
       }),
     }),
@@ -46,7 +48,6 @@ import { AuditRunnerModule } from './audit-runner/audit-runner.module';
     IssuesModule,
     InternalModule,
     AuditRunnerModule,
-      
   ],
 
   controllers: [HealthController],

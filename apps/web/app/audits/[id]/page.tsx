@@ -1,10 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Header } from '../../../components/Header';
 import { api } from '../../../lib/api';
+import {
+  isProcessing as isAuditProcessing,
+  type AuditStatus,
+} from '../../../lib/audit-status';
 
 type MetricKey =
   | 'securityScore'
@@ -28,15 +32,6 @@ type Issue = {
   aiExplanation: string | null;
   suggestedFix: string | null;
 };
-
-type AuditStatus =
-  | 'PENDING'
-  | 'RUNNING'
-  | 'DOWNLOADING'
-  | 'SCANNING'
-  | 'AI_ANALYSIS'
-  | 'COMPLETED'
-  | 'FAILED';
 
 type Audit = {
   id: string;
@@ -130,54 +125,59 @@ export default function AuditPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  async function loadAudit() {
-    try {
-      const data = await api<Audit>(`/audits/${params.id}`);
+  const loadAudit = useCallback(
+    async (signal?: AbortSignal) => {
+      try {
+        const data = await api<Audit>(`/audits/${params.id}`, { signal });
 
-      setAudit(data);
-      setError('');
+        if (signal?.aborted) return null;
+        setAudit(data);
+        setError('');
 
-      return data;
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to load audit',
-      );
+        return data;
+      } catch (err) {
+        if (signal?.aborted) return null;
+        setError(err instanceof Error ? err.message : 'Failed to load audit');
 
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    loadAudit();
-  }, [params.id]);
-
-  useEffect(() => {
-    if (!audit) return;
-
-    const processingStatuses: AuditStatus[] = [
-      'PENDING',
-      'RUNNING',
-      'DOWNLOADING',
-      'SCANNING',
-      'AI_ANALYSIS',
-    ];
-
-    if (!processingStatuses.includes(audit.status)) {
-      return;
-    }
-
-    const interval = setInterval(async () => {
-      const updated = await loadAudit();
-
-      if (updated && !processingStatuses.includes(updated.status)) {
-        clearInterval(interval);
+        return null;
+      } finally {
+        if (!signal?.aborted) setLoading(false);
       }
-    }, 2000);
+    },
+    [params.id],
+  );
 
-    return () => clearInterval(interval);
-  }, [audit?.status, params.id]);
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setAudit(null);
+    void loadAudit(controller.signal);
+    return () => controller.abort();
+  }, [loadAudit]);
+
+  useEffect(() => {
+    const status = audit?.status;
+    if (!status || !isAuditProcessing(status)) return;
+
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+
+    async function poll() {
+      const updated = await loadAudit(controller.signal);
+      if (
+        !controller.signal.aborted &&
+        (!updated || isAuditProcessing(updated.status))
+      ) {
+        timer = setTimeout(poll, 3000);
+      }
+    }
+
+    timer = setTimeout(poll, 3000);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [audit?.status, loadAudit]);
 
   const metrics = useMemo<[MetricKey, number][]>(() => {
     if (!audit?.metrics) return [];
@@ -236,9 +236,7 @@ export default function AuditPage() {
           <div className="card p-8">
             <p className="text-sm text-rose-300">Audit error</p>
 
-            <h1 className="mt-2 text-2xl font-semibold">
-              Audit not found
-            </h1>
+            <h1 className="mt-2 text-2xl font-semibold">Audit not found</h1>
 
             <p className="muted mt-2">
               {error || 'This audit could not be loaded.'}
@@ -330,9 +328,7 @@ export default function AuditPage() {
               </div>
 
               <div className="text-left lg:text-right">
-                <p className="muted text-xs uppercase tracking-wider">
-                  Audit
-                </p>
+                <p className="muted text-xs uppercase tracking-wider">Audit</p>
 
                 <p className="mt-1 font-mono text-sm text-slate-300">
                   {audit.id}
@@ -342,124 +338,121 @@ export default function AuditPage() {
           </section>
 
           {/* Processing state */}
-       {isProcessing && (
-  <section className="mt-6 card overflow-hidden">
-    <div className="p-7 lg:p-8">
-      <div className="flex flex-col gap-8 lg:flex-row lg:items-center">
-        <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-3xl border border-cyan-400/20 bg-cyan-400/[.05]">
-          <div className="relative flex h-12 w-12 items-center justify-center">
-            <span className="absolute inset-0 animate-ping rounded-full bg-cyan-400/10" />
-            <span className="relative h-10 w-10 animate-spin rounded-full border-2 border-white/10 border-t-cyan-300" />
-          </div>
-        </div>
+          {isProcessing && (
+            <section className="mt-6 card overflow-hidden">
+              <div className="p-7 lg:p-8">
+                <div className="flex flex-col gap-8 lg:flex-row lg:items-center">
+                  <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-3xl border border-cyan-400/20 bg-cyan-400/[.05]">
+                    <div className="relative flex h-12 w-12 items-center justify-center">
+                      <span className="absolute inset-0 animate-ping rounded-full bg-cyan-400/10" />
+                      <span className="relative h-10 w-10 animate-spin rounded-full border-2 border-white/10 border-t-cyan-300" />
+                    </div>
+                  </div>
 
-        <div className="flex-1">
-          <p className="text-sm font-medium text-cyan-300">
-            {formatStatus(audit.status)}
-          </p>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-cyan-300">
+                      {formatStatus(audit.status)}
+                    </p>
 
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight">
-            {audit.status === 'PENDING'
-              ? 'Waiting for the analysis worker'
-              : audit.status === 'DOWNLOADING'
-                ? 'Downloading your repository'
-                : audit.status === 'SCANNING'
-                  ? 'Analyzing your source code'
-                  : audit.status === 'AI_ANALYSIS'
-                    ? 'Generating AI-powered insights'
-                    : 'CodePilot is processing your repository and preparing the final report'}
-          </h2>
+                    <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+                      {audit.status === 'PENDING'
+                        ? 'Waiting for the analysis worker'
+                        : audit.status === 'DOWNLOADING'
+                          ? 'Downloading your repository'
+                          : audit.status === 'SCANNING'
+                            ? 'Analyzing your source code'
+                            : audit.status === 'AI_ANALYSIS'
+                              ? 'Generating AI-powered insights'
+                              : 'CodePilot is processing your repository and preparing the final report'}
+                    </h2>
 
-          <p className="muted mt-2 max-w-2xl leading-7">
-            {audit.status === 'PENDING'
-              ? 'Your audit has been created successfully and is waiting to be processed.'
-              : audit.status === 'DOWNLOADING'
-                ? 'CodePilot is fetching the repository files required for analysis.'
-                : audit.status === 'SCANNING'
-                  ? 'The static analyzer is inspecting your source code for potential issues.'
-                  : audit.status === 'AI_ANALYSIS'
-                    ? 'The AI engine is enriching detected findings with explanations and suggested fixes.'
-                    : 'CodePilot is processing your repository and preparing the final report.'}
-          </p>
-        </div>
+                    <p className="muted mt-2 max-w-2xl leading-7">
+                      {audit.status === 'PENDING'
+                        ? 'Your audit has been created successfully and is waiting to be processed.'
+                        : audit.status === 'DOWNLOADING'
+                          ? 'CodePilot is fetching the repository files required for analysis.'
+                          : audit.status === 'SCANNING'
+                            ? 'The static analyzer is inspecting your source code for potential issues.'
+                            : audit.status === 'AI_ANALYSIS'
+                              ? 'The AI engine is enriching detected findings with explanations and suggested fixes.'
+                              : 'CodePilot is processing your repository and preparing the final report.'}
+                    </p>
+                  </div>
 
-        <div className="shrink-0 rounded-xl border border-white/[.07] bg-white/[.02] px-4 py-3">
-          <p className="text-[11px] uppercase tracking-[.16em] text-slate-500">
-            Status
-          </p>
+                  <div className="shrink-0 rounded-xl border border-white/[.07] bg-white/[.02] px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-[.16em] text-slate-500">
+                      Status
+                    </p>
 
-          <p className="mt-1 text-sm font-medium text-cyan-200">
-            {formatStatus(audit.status)}
-          </p>
-        </div>
-      </div>
+                    <p className="mt-1 text-sm font-medium text-cyan-200">
+                      {formatStatus(audit.status)}
+                    </p>
+                  </div>
+                </div>
 
-      <div className="mt-8">
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-xs uppercase tracking-[.16em] text-slate-500">
-            Analysis pipeline
-          </p>
+                <div className="mt-8">
+                  <div className="mb-3 flex items-center justify-between">
+                    <p className="text-xs uppercase tracking-[.16em] text-slate-500">
+                      Analysis pipeline
+                    </p>
 
-          <p className="text-xs text-slate-500">
-            Auto-refreshing
-          </p>
-        </div>
+                    <p className="text-xs text-slate-500">Auto-refreshing</p>
+                  </div>
 
-        <div className="h-1.5 overflow-hidden rounded-full bg-white/[.06]">
-          <div
-            className="h-full rounded-full bg-cyan-300 transition-all duration-700"
-            style={{
-              width:
-                audit.status === 'PENDING'
-                  ? '10%'
-                  : audit.status === 'RUNNING'
-                    ? '20%'
-                    : audit.status === 'DOWNLOADING'
-                      ? '40%'
-                      : audit.status === 'SCANNING'
-                        ? '65%'
-                        : audit.status === 'AI_ANALYSIS'
-                          ? '85%'
-                          : '100%',
-            }}
-          />
-        </div>
-      </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-white/[.06]">
+                    <div
+                      className="h-full rounded-full bg-cyan-300 transition-all duration-700"
+                      style={{
+                        width:
+                          audit.status === 'PENDING'
+                            ? '10%'
+                            : audit.status === 'RUNNING'
+                              ? '20%'
+                              : audit.status === 'DOWNLOADING'
+                                ? '40%'
+                                : audit.status === 'SCANNING'
+                                  ? '65%'
+                                  : audit.status === 'AI_ANALYSIS'
+                                    ? '85%'
+                                    : '100%',
+                      }}
+                    />
+                  </div>
+                </div>
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <ProgressStep
-          title="Repository queued"
-          description="Audit initialized"
-          state={getStepState(0)}
-        />
+                <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <ProgressStep
+                    title="Repository queued"
+                    description="Audit initialized"
+                    state={getStepState(0)}
+                  />
 
-        <ProgressStep
-          title="Repository download"
-          description="Fetching repository files"
-          state={getStepState(2)}
-        />
+                  <ProgressStep
+                    title="Repository download"
+                    description="Fetching repository files"
+                    state={getStepState(2)}
+                  />
 
-        <ProgressStep
-          title="Static analysis"
-          description="Scanning source code"
-          state={getStepState(3)}
-        />
+                  <ProgressStep
+                    title="Static analysis"
+                    description="Scanning source code"
+                    state={getStepState(3)}
+                  />
 
-        <ProgressStep
-          title="AI analysis"
-          description="Generating intelligent findings"
-          state={getStepState(4)}
-        />
-      </div>
+                  <ProgressStep
+                    title="AI analysis"
+                    description="Generating intelligent findings"
+                    state={getStepState(4)}
+                  />
+                </div>
 
-      <div className="mt-6 flex items-center gap-2 text-xs text-slate-500">
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-300" />
-
-        This page automatically checks for updates every 2 seconds.
-      </div>
-    </div>
-  </section>
-)}
+                <div className="mt-6 flex items-center gap-2 text-xs text-slate-500">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-300" />
+                  This page automatically checks for updates every 2 seconds.
+                </div>
+              </div>
+            </section>
+          )}
 
           {/* Failed state */}
           {audit.status === 'FAILED' && (
@@ -499,16 +492,12 @@ export default function AuditPage() {
                           {audit.overallScore ?? '—'}
                         </p>
 
-                        <p className="mt-1 text-xs text-slate-500">
-                          / 100
-                        </p>
+                        <p className="mt-1 text-xs text-slate-500">/ 100</p>
                       </div>
                     </div>
 
                     <div>
-                      <p className="text-sm text-cyan-300">
-                        Overall health
-                      </p>
+                      <p className="text-sm text-cyan-300">Overall health</p>
 
                       <h2 className="mt-1 text-2xl font-semibold">
                         Repository analysis complete
@@ -533,9 +522,7 @@ export default function AuditPage() {
                 </div>
 
                 <div className="card p-7">
-                  <p className="text-sm text-cyan-300">
-                    Issue overview
-                  </p>
+                  <p className="text-sm text-cyan-300">Issue overview</p>
 
                   <h2 className="mt-1 text-xl font-semibold">
                     Findings by severity
@@ -578,9 +565,7 @@ export default function AuditPage() {
               {/* Metrics */}
               <section className="mt-6">
                 <div>
-                  <p className="text-sm text-cyan-300">
-                    Analysis metrics
-                  </p>
+                  <p className="text-sm text-cyan-300">Analysis metrics</p>
 
                   <h2 className="mt-1 text-2xl font-semibold">
                     Code health breakdown
@@ -602,9 +587,7 @@ export default function AuditPage() {
               <section className="mt-10">
                 <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
                   <div>
-                    <p className="text-sm text-cyan-300">
-                      Findings
-                    </p>
+                    <p className="text-sm text-cyan-300">Findings</p>
 
                     <h2 className="mt-1 text-2xl font-semibold">
                       Issues detected
@@ -680,9 +663,7 @@ export default function AuditPage() {
                         {(issue.filePath || issue.lineNumber) && (
                           <div className="mt-5 rounded-xl border border-white/[.07] bg-black/20 px-4 py-3 font-mono text-xs text-slate-400">
                             {issue.filePath ?? 'Unknown file'}
-                            {issue.lineNumber
-                              ? `:${issue.lineNumber}`
-                              : ''}
+                            {issue.lineNumber ? `:${issue.lineNumber}` : ''}
                           </div>
                         )}
 
@@ -707,20 +688,11 @@ export default function AuditPage() {
 
           {/* Metadata */}
           <section className="mt-10 grid gap-4 md:grid-cols-3">
-            <InfoCard
-              title="Created"
-              value={formatDate(audit.createdAt)}
-            />
+            <InfoCard title="Created" value={formatDate(audit.createdAt)} />
 
-            <InfoCard
-              title="Started"
-              value={formatDate(audit.startedAt)}
-            />
+            <InfoCard title="Started" value={formatDate(audit.startedAt)} />
 
-            <InfoCard
-              title="Completed"
-              value={formatDate(audit.completedAt)}
-            />
+            <InfoCard title="Completed" value={formatDate(audit.completedAt)} />
           </section>
         </div>
       </div>
@@ -728,21 +700,13 @@ export default function AuditPage() {
   );
 }
 
-function MetricCard({
-  label,
-  score,
-}: {
-  label: string;
-  score: number;
-}) {
+function MetricCard({ label, score }: { label: string; score: number }) {
   return (
     <div className="card p-5">
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-400">{label}</p>
 
-        <span
-          className={`text-lg font-semibold ${scoreColor(score)}`}
-        >
+        <span className={`text-lg font-semibold ${scoreColor(score)}`}>
           {score}
         </span>
       </div>
@@ -756,9 +720,7 @@ function MetricCard({
         />
       </div>
 
-      <p className="mt-2 text-right text-[11px] text-slate-600">
-        / 100
-      </p>
+      <p className="mt-2 text-right text-[11px] text-slate-600">/ 100</p>
     </div>
   );
 }
@@ -776,9 +738,7 @@ function IssueCount({
     <div className="flex items-center justify-between rounded-xl border border-white/[.06] bg-white/[.02] px-4 py-3">
       <span className={`text-sm ${className}`}>{label}</span>
 
-      <span className="text-sm font-semibold text-slate-200">
-        {count}
-      </span>
+      <span className="text-sm font-semibold text-slate-200">{count}</span>
     </div>
   );
 }
@@ -827,35 +787,23 @@ function ProgressStep({
         <div className="min-w-0">
           <p
             className={`text-sm font-medium ${
-              complete || active
-                ? 'text-slate-200'
-                : 'text-slate-500'
+              complete || active ? 'text-slate-200' : 'text-slate-500'
             }`}
           >
             {title}
           </p>
 
-          <p className="mt-1 text-xs leading-5 text-slate-600">
-            {description}
-          </p>
+          <p className="mt-1 text-xs leading-5 text-slate-600">{description}</p>
         </div>
       </div>
     </div>
   );
 }
 
-function InfoCard({
-  title,
-  value,
-}: {
-  title: string;
-  value: string;
-}) {
+function InfoCard({ title, value }: { title: string; value: string }) {
   return (
     <div className="card p-5">
-      <p className="text-xs uppercase tracking-wider text-slate-500">
-        {title}
-      </p>
+      <p className="text-xs uppercase tracking-wider text-slate-500">{title}</p>
 
       <p className="mt-2 truncate text-sm font-medium text-slate-200">
         {value}
@@ -863,4 +811,3 @@ function InfoCard({
     </div>
   );
 }
-

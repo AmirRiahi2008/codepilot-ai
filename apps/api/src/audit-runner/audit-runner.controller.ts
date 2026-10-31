@@ -1,26 +1,25 @@
 import {
   Controller,
   Headers,
+  Inject,
   Param,
   Post,
   Req,
   UnauthorizedException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 
-import { Request } from 'express';
+import type { Request } from 'express';
+import type { RawBodyRequest } from '@nestjs/common';
 import { Receiver } from '@upstash/qstash';
 
 import { AuditRunnerService } from './audit-runner.service';
-
-type RequestWithRawBody = Request & {
-  rawBody?: string;
-};
 
 @Controller('internal')
 export class AuditRunnerController {
   constructor(
     private readonly auditRunner: AuditRunnerService,
-    private readonly receiver: Receiver,
+    @Inject(Receiver) private readonly receiver: Receiver | null,
   ) {}
 
   @Post('audits/:id/run')
@@ -28,32 +27,32 @@ export class AuditRunnerController {
     @Param('id') id: string,
     @Headers('upstash-signature')
     signature: string | undefined,
-    @Req() req: RequestWithRawBody,
+    @Req() req: RawBodyRequest<Request>,
   ) {
-    if (!signature || !req.rawBody) {
-      throw new UnauthorizedException(
-        'Missing QStash signature',
+    if (!this.receiver) {
+      throw new ServiceUnavailableException(
+        'Repository analysis is not configured',
       );
+    }
+    if (!signature || !req.rawBody) {
+      throw new UnauthorizedException('Missing QStash signature');
     }
 
     const apiUrl =
-      process.env.API_URL ??
-      'http://localhost:4000';
+      process.env.API_URL?.replace(/\/+$/, '') || 'http://localhost:4000';
 
-    const url =
-      `${apiUrl}/api/v1/internal/audits/${id}/run`;
+    const url = `${apiUrl}/api/v1/internal/audits/${id}/run`;
 
-    const valid =
-      await this.receiver.verify({
-        body: req.rawBody,
+    const valid = await this.receiver
+      .verify({
+        body: req.rawBody.toString('utf8'),
         signature,
         url,
-      });
+      })
+      .catch(() => false);
 
     if (!valid) {
-      throw new UnauthorizedException(
-        'Invalid QStash signature',
-      );
+      throw new UnauthorizedException('Invalid QStash signature');
     }
 
     return this.auditRunner.run(id);
