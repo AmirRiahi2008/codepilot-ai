@@ -50,6 +50,15 @@ export async function proxyApi(
   }
 
   const incoming = new URL(request.url);
+  // Next.js can expose its internal hostname in request.url behind a reverse proxy.
+  const host = request.headers.get('host');
+  if (host) {
+    incoming.port = '';
+    incoming.host = host;
+  }
+  const protocol = request.headers.get('x-forwarded-proto');
+  if (protocol === 'http' || protocol === 'https')
+    incoming.protocol = `${protocol}:`;
   const origin = request.headers.get('origin');
   if (
     !['GET', 'HEAD'].includes(request.method) &&

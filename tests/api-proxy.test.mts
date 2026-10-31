@@ -129,6 +129,20 @@ test('gateway blocks internal endpoints, traversal and foreign mutation origins'
   assert.equal((await proxyApi(foreign, ['auth', 'logout'])).status, 403);
 });
 
+test('gateway compares mutation origins with the public host behind a reverse proxy', async () => {
+  globalThis.fetch = async () => Response.json({ ok: true });
+  const request = new Request('http://localhost:3000/api/v1/auth/login', {
+    method: 'POST',
+    headers: {
+      Host: 'web.example.test',
+      'X-Forwarded-Proto': 'https',
+      Origin: 'https://web.example.test',
+    },
+    body: '{}',
+  });
+  assert.equal((await proxyApi(request, ['auth', 'login'])).status, 200);
+});
+
 test('missing production configuration, self-proxying and network failure give explicit errors', async () => {
   delete process.env.API_ORIGIN;
   process.env.NODE_ENV = 'production';
